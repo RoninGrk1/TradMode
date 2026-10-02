@@ -12,6 +12,27 @@ export function defaultRailsState(tierId: RiskTierId = "balanced"): RiskRailsSta
   };
 }
 
+
+/** Effective orders in the rolling 60s window (decays when lastOrderAt ages out). */
+export function effectiveOrdersInLastMinute(state: RiskRailsState, nowMs = Date.now()): number {
+  if (!state.lastOrderAt) return 0;
+  const last = Date.parse(state.lastOrderAt);
+  if (!Number.isFinite(last) || nowMs - last >= 60_000) return 0;
+  return state.ordersInLastMinute;
+}
+
+/** Next rails counters after accepting an order (rolling 1-minute window). */
+export function bumpOrderCounters(state: RiskRailsState, sizeUsd: number, now = new Date()): RiskRailsState {
+  const nowMs = now.getTime();
+  const withinWindow = effectiveOrdersInLastMinute(state, nowMs) > 0;
+  return {
+    ...state,
+    openExposureUsd: state.openExposureUsd + sizeUsd,
+    ordersInLastMinute: withinWindow ? state.ordersInLastMinute + 1 : 1,
+    lastOrderAt: now.toISOString(),
+  };
+}
+
 export interface ProposedTrade {
   side: "Yes" | "No";
   sizeUsd: number;
@@ -90,7 +111,8 @@ export function checkTradeRails(state: RiskRailsState, trade: ProposedTrade): Ra
     };
   }
 
-  if (state.ordersInLastMinute >= tier.rateLimitPerMinute) {
+  const ordersInWindow = effectiveOrdersInLastMinute(state);
+  if (ordersInWindow >= tier.rateLimitPerMinute) {
     return {
       allowed: false,
       code: "rate_limit",

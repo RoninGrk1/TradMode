@@ -1,6 +1,6 @@
-import type { RiskTier } from "./types";
+import type { RiskTier, RiskTierId } from "./types";
 
-export const RISK_TIERS: Record<RiskTier["id"], RiskTier> = {
+export const RISK_TIERS: Record<RiskTierId, RiskTier> = {
   conservative: {
     id: "conservative",
     name: "Conservative",
@@ -36,8 +36,10 @@ export const RISK_TIERS: Record<RiskTier["id"], RiskTier> = {
   },
 };
 
-export const DEFAULT_TIER_ID: RiskTier["id"] = "balanced";
+export const DEFAULT_TIER_ID: RiskTierId = "balanced";
 
-export function getTier(id: RiskTier["id"]): RiskTier {
-  return RISK_TIERS[id];
+/** Always returns a defined tier — unknown ids fall back to default (avoids UI crashes from bad storage). */
+export function getTier(id: RiskTierId | string | null | undefined): RiskTier {
+  if (id && id in RISK_TIERS) return RISK_TIERS[id as RiskTierId];
+  return RISK_TIERS[DEFAULT_TIER_ID];
 }

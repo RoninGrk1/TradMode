@@ -115,7 +115,7 @@ export function WalletPanel() {
                 className="rounded-[var(--tm-radius-sm)] border border-[var(--tm-color-border)] p-2"
               >
                 <div className="flex justify-between gap-2">
-                  <span className="capitalize text-[var(--tm-color-chrome)]">{tx.type.replace("_", " ")}</span>
+                  <span className="capitalize text-[var(--tm-color-chrome)]">{tx.type.replaceAll("_", " ")}</span>
                   <span className="tabular-nums text-[var(--tm-color-chrome-bright)]">
                     ${tx.amountUsd.toFixed(2)}
                   </span>

@@ -4,32 +4,27 @@ import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { GlassCard } from "@/components/ui/GlassCard";
-import { defaultRailsState } from "@/lib/risk/rails";
+import { defaultRailsState, effectiveOrdersInLastMinute } from "@/lib/risk/rails";
+import { loadRailsFromStorage, saveRailsToStorage } from "@/lib/risk/storage";
 import { RISK_TIERS, DEFAULT_TIER_ID, getTier } from "@/lib/risk/tiers";
 import type { RiskRailsState, RiskTierId } from "@/lib/risk/types";
-
-const RAILS_KEY = "tradmode.rails.v1";
 
 export function RiskPanel() {
   const [rails, setRails] = useState<RiskRailsState>(defaultRailsState(DEFAULT_TIER_ID));
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(RAILS_KEY);
-      if (raw) setRails(JSON.parse(raw) as RiskRailsState);
-    } catch {
-      /* ignore */
-    }
+    setRails(loadRailsFromStorage());
     setHydrated(true);
   }, []);
 
   function persist(next: RiskRailsState) {
     setRails(next);
-    localStorage.setItem(RAILS_KEY, JSON.stringify(next));
+    saveRailsToStorage(next);
   }
 
   const active = getTier(rails.tierId);
+  const ordersInWindow = effectiveOrdersInLastMinute(rails);
 
   return (
     <div className="space-y-4">
@@ -118,7 +113,7 @@ export function RiskPanel() {
           <div>
             <dt className="text-[var(--tm-color-text-dim)]">Orders / min</dt>
             <dd className="tabular-nums text-[var(--tm-color-chrome-bright)]">
-              {rails.ordersInLastMinute}
+              {ordersInWindow}
             </dd>
           </div>
           <div>
@@ -128,6 +123,10 @@ export function RiskPanel() {
             </dd>
           </div>
         </dl>
+        <p className="text-[11px] text-[var(--tm-color-text-dim)]">
+          Note: daily loss is not auto-updated until a settlement/PnL path exists; open exposure only
+          clears via Reset or a future fill-watcher. Rate limit uses a rolling 60s window.
+        </p>
       </GlassCard>
     </div>
   );

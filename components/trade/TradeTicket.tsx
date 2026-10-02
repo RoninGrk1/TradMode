@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { GlassCard } from "@/components/ui/GlassCard";
-import { checkTradeRails, defaultRailsState } from "@/lib/risk/rails";
+import { bumpOrderCounters, checkTradeRails, defaultRailsState, effectiveOrdersInLastMinute } from "@/lib/risk/rails";
+import { loadRailsFromStorage, saveRailsToStorage } from "@/lib/risk/storage";
 import { DEFAULT_TIER_ID, getTier } from "@/lib/risk/tiers";
 import type { RiskRailsState, RiskTierId } from "@/lib/risk/types";
 import type { Btc15mMarketView, OutcomeSide } from "@/lib/polymarket/types";
@@ -15,23 +16,6 @@ import {
   saveWalletToStorage,
 } from "@/lib/wallet/store";
 import type { WalletState } from "@/lib/wallet/types";
-
-const RAILS_KEY = "tradmode.rails.v1";
-
-function loadRails(): RiskRailsState {
-  if (typeof window === "undefined") return defaultRailsState(DEFAULT_TIER_ID);
-  try {
-    const raw = localStorage.getItem(RAILS_KEY);
-    if (raw) return JSON.parse(raw) as RiskRailsState;
-  } catch {
-    /* ignore */
-  }
-  return defaultRailsState(DEFAULT_TIER_ID);
-}
-
-function saveRails(s: RiskRailsState) {
-  localStorage.setItem(RAILS_KEY, JSON.stringify(s));
-}
 
 export function TradeTicket({
   initialMarket,
@@ -49,11 +33,13 @@ export function TradeTicket({
   const [rails, setRails] = useState<RiskRailsState>(defaultRailsState(DEFAULT_TIER_ID));
   const [message, setMessage] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const submitLock = useRef(false);
 
   useEffect(() => {
     const w = loadWalletFromStorage() ?? createEmptyWallet(0);
     setWallet(w);
-    setRails(loadRails());
+    setRails(loadRailsFromStorage());
     setHydrated(true);
   }, []);
 
@@ -77,6 +63,7 @@ export function TradeTicket({
 
   const sizeUsd = Number(size);
   const tier = getTier(rails.tierId);
+  const ordersInWindow = effectiveOrdersInLastMinute(rails);
   const check = useMemo(
     () =>
       checkTradeRails(rails, {
@@ -88,14 +75,27 @@ export function TradeTicket({
     [rails, side, sizeUsd, wallet.balanceUsd, confirmed],
   );
 
+  const marketTradable = market?.status === "live";
+
   function onTier(id: RiskTierId) {
     const next = { ...rails, tierId: id };
     setRails(next);
-    saveRails(next);
+    saveRailsToStorage(next);
   }
 
   function submitIntent() {
+    if (submitLock.current || submitting) return;
     setMessage(null);
+
+    if (!marketTradable) {
+      setMessage(
+        market
+          ? `Market status is "${market.status}" — only live windows accept tickets.`
+          : "No market loaded — cannot submit.",
+      );
+      return;
+    }
+
     const result = checkTradeRails(rails, {
       side,
       sizeUsd,
@@ -107,32 +107,35 @@ export function TradeTicket({
       return;
     }
 
-    // Scaffold: debit wallet locally; CLOB live orders require POLYMARKET_PRIVATE_KEY.
-    const hasClobKey = false; // client cannot read server secrets; document in UI
-    const note = hasClobKey
-      ? `CLOB ${side} on ${market?.window.slug ?? "unknown"}`
-      : `Intent recorded (scaffold — not a live CLOB order): ${side} $${sizeUsd.toFixed(2)} on ${market?.window.slug ?? "n/a"}`;
+    submitLock.current = true;
+    setSubmitting(true);
 
-    const debited = applyTx(wallet, "trade_debit", sizeUsd, note);
-    if (!debited.ok) {
-      setMessage(debited.error);
-      return;
+    try {
+      // Scaffold: debit wallet locally; CLOB live orders require POLYMARKET_PRIVATE_KEY.
+      const hasClobKey = false; // client cannot read server secrets; document in UI
+      const note = hasClobKey
+        ? `CLOB ${side} on ${market?.window.slug ?? "unknown"}`
+        : `Intent recorded (scaffold — not a live CLOB order): ${side} $${sizeUsd.toFixed(2)} on ${market?.window.slug ?? "n/a"}`;
+
+      const debited = applyTx(wallet, "trade_debit", sizeUsd, note);
+      if (!debited.ok) {
+        setMessage(debited.error);
+        return;
+      }
+      setWallet(debited.state);
+      saveWalletToStorage(debited.state);
+
+      const nextRails = bumpOrderCounters(rails, sizeUsd);
+      setRails(nextRails);
+      saveRailsToStorage(nextRails);
+      setConfirmed(false);
+      setMessage(
+        `Ticket accepted under ${tier.name} rails. Live CLOB submission needs POLYMARKET_PRIVATE_KEY — this debit is the in-app wallet ledger only.`,
+      );
+    } finally {
+      submitLock.current = false;
+      setSubmitting(false);
     }
-    setWallet(debited.state);
-    saveWalletToStorage(debited.state);
-
-    const nextRails: RiskRailsState = {
-      ...rails,
-      openExposureUsd: rails.openExposureUsd + sizeUsd,
-      ordersInLastMinute: rails.ordersInLastMinute + 1,
-      lastOrderAt: new Date().toISOString(),
-    };
-    setRails(nextRails);
-    saveRails(nextRails);
-    setConfirmed(false);
-    setMessage(
-      `Ticket accepted under ${tier.name} rails. Live CLOB submission needs POLYMARKET_PRIVATE_KEY — this debit is the in-app wallet ledger only.`,
-    );
   }
 
   return (
@@ -182,6 +185,11 @@ export function TradeTicket({
             {market.prices == null ? (
               <p className="text-xs text-[var(--tm-color-warn)]">
                 No live outcome prices from Gamma for this window.
+              </p>
+            ) : null}
+            {!marketTradable ? (
+              <p className="text-xs text-[var(--tm-color-warn)]">
+                Status “{market.status}” — submit is disabled until Gamma reports live.
               </p>
             ) : null}
           </div>
@@ -235,10 +243,10 @@ export function TradeTicket({
           <Button
             type="button"
             variant={side === "Yes" ? "yes" : "no"}
-            disabled={!hydrated || !check.allowed}
+            disabled={!hydrated || submitting || !marketTradable || !check.allowed}
             onClick={submitIntent}
           >
-            Submit {side} intent
+            {submitting ? "Submitting…" : `Submit ${side} intent`}
           </Button>
           <Button
             type="button"
@@ -246,7 +254,7 @@ export function TradeTicket({
             onClick={() => {
               const next = { ...rails, killSwitch: !rails.killSwitch };
               setRails(next);
-              saveRails(next);
+              saveRailsToStorage(next);
             }}
           >
             {rails.killSwitch ? "Disarm kill switch" : "Arm kill switch"}
@@ -272,7 +280,9 @@ export function TradeTicket({
           <li>Max order: ${tier.maxOrderUsd}</li>
           <li>Max position: ${tier.maxPositionUsd}</li>
           <li>Max daily loss: ${tier.maxDailyLossUsd}</li>
-          <li>Rate: {tier.rateLimitPerMinute}/min (used {rails.ordersInLastMinute})</li>
+          <li>
+            Rate: {tier.rateLimitPerMinute}/min (used {ordersInWindow} in window)
+          </li>
           <li>Open exposure: ${rails.openExposureUsd.toFixed(2)}</li>
           <li>Wallet: ${wallet.balanceUsd.toFixed(2)}</li>
           <li>Kill switch: {rails.killSwitch ? "ON" : "OFF"}</li>

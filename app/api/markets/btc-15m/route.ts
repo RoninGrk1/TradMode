@@ -33,12 +33,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: true, market, source: "gamma" });
   }
 
-  const past = Number(req.nextUrl.searchParams.get("past") ?? "1");
-  const future = Number(req.nextUrl.searchParams.get("future") ?? "3");
-  const bundle = await fetchNearbyBtc15mMarkets(
-    Number.isFinite(past) ? past : 1,
-    Number.isFinite(future) ? future : 3,
-  );
+  const pastRaw = Number(req.nextUrl.searchParams.get("past") ?? "1");
+  const futureRaw = Number(req.nextUrl.searchParams.get("future") ?? "3");
+  // Clamp to avoid unbounded fan-out of Gamma requests (DoS / rate-limit burn).
+  const past = Number.isFinite(pastRaw) ? Math.min(Math.max(Math.floor(pastRaw), 0), 12) : 1;
+  const future = Number.isFinite(futureRaw) ? Math.min(Math.max(Math.floor(futureRaw), 0), 24) : 3;
+  const bundle = await fetchNearbyBtc15mMarkets(past, future);
   return NextResponse.json({
     ok: true,
     ...bundle,
