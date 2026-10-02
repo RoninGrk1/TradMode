@@ -1,7 +1,7 @@
 /**
  * BTC 15-minute incremental markets on Polymarket.
  * Slug pattern: btc-updown-15m-{unix} where unix is the ET window start.
- * Outcomes: Up / Down → TradeMode Yes (win/up) / No (lose/down).
+ * Outcomes: Up / Down → TradMode Yes (win/up) / No (lose/down).
  */
 
 import type { Btc15mWindow } from "./types";

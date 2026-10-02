@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "TradeMode — BTC 15m Terminal",
+  title: "TradMode — BTC 15m Terminal",
   description:
     "Glass trading terminal for Polymarket BTC 15-minute markets with risk rails, in-app wallet, and a 23-agent roster.",
 };

@@ -16,7 +16,7 @@ import {
 } from "@/lib/wallet/store";
 import type { WalletState } from "@/lib/wallet/types";
 
-const RAILS_KEY = "trademode.rails.v1";
+const RAILS_KEY = "tradmode.rails.v1";
 
 function loadRails(): RiskRailsState {
   if (typeof window === "undefined") return defaultRailsState(DEFAULT_TIER_ID);

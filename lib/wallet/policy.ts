@@ -3,7 +3,7 @@
  * - No fees on deposit or withdrawal
  * - No minimum deposit
  * - No maximum withdrawal (up to available balance)
- * - Balance is an app-local ledger for TradeMode UX (not a custodial bank)
+ * - Balance is an app-local ledger for TradMode UX (not a custodial bank)
  */
 
 export const WALLET_POLICY = {
@@ -15,5 +15,5 @@ export const WALLET_POLICY = {
   maxWithdrawUsd: null as number | null, // unrestricted except available balance
   currency: "USD" as const,
   summary:
-    "No fees. No minimum deposit. No maximum withdrawal (up to your available balance). TradeMode wallet is an in-app ledger for terminal UX.",
+    "No fees. No minimum deposit. No maximum withdrawal (up to your available balance). TradMode wallet is an in-app ledger for terminal UX.",
 } as const;

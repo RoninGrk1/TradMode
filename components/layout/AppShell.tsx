@@ -22,7 +22,7 @@ export function AppShell({
               </div>
               <div>
                 <p className="text-sm font-semibold tracking-wide text-[var(--tm-color-chrome-bright)]">
-                  TradeMode
+                  TradMode
                 </p>
                 <p className="text-[11px] text-[var(--tm-color-text-dim)]">
                   Polymarket BTC 15m · glass terminal
@@ -48,7 +48,7 @@ export function AppShell({
         {children}
       </main>
       <footer className="mx-auto max-w-6xl px-4 pb-10 text-xs text-[var(--tm-color-text-dim)] sm:px-6">
-        TradeMode is a research/trading terminal scaffold. Polymarket geographic restrictions may apply.
+        TradMode is a research/trading terminal scaffold. Polymarket geographic restrictions may apply.
         Not financial advice. Prices shown only when returned by public APIs.
       </footer>
     </div>

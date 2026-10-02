@@ -8,7 +8,7 @@ import { defaultRailsState } from "@/lib/risk/rails";
 import { RISK_TIERS, DEFAULT_TIER_ID, getTier } from "@/lib/risk/tiers";
 import type { RiskRailsState, RiskTierId } from "@/lib/risk/types";
 
-const RAILS_KEY = "trademode.rails.v1";
+const RAILS_KEY = "tradmode.rails.v1";
 
 export function RiskPanel() {
   const [rails, setRails] = useState<RiskRailsState>(defaultRailsState(DEFAULT_TIER_ID));

@@ -1,5 +1,5 @@
 /**
- * TradeMode design tokens (TS mirror of styles/tokens.css).
+ * TradMode design tokens (TS mirror of styles/tokens.css).
  * Use for programmatic theming and Figma variable sync docs.
  * Keep in sync with styles/tokens.css — same names without the --tm- prefix nesting.
  */
@@ -70,10 +70,10 @@ export type Tokens = typeof tokens;
 /** Figma Variable collection mapping notes */
 export const figmaSyncNotes = {
   collections: [
-    "Color / TradeMode",
-    "Radius / TradeMode",
-    "Blur / TradeMode",
-    "Spacing / TradeMode",
+    "Color / TradMode",
+    "Radius / TradMode",
+    "Blur / TradMode",
+    "Spacing / TradMode",
   ],
   cssFile: "styles/tokens.css",
   tsFile: "styles/tokens.ts",

@@ -1,7 +1,7 @@
 import { WALLET_POLICY } from "./policy";
 import type { WalletState, WalletTransaction, WalletTxType } from "./types";
 
-const STORAGE_KEY = "trademode.wallet.v1";
+const STORAGE_KEY = "tradmode.wallet.v1";
 
 export function createEmptyWallet(startingBalance = 0): WalletState {
   const now = new Date().toISOString();

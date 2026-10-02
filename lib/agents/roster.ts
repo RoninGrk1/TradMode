@@ -1,7 +1,7 @@
 import type { AgentRole } from "./types";
 
 /**
- * TradeMode agent roster — 23 named Grok-agent roles.
+ * TradMode agent roster — 23 named Grok-agent roles.
  * Scaffolding + interfaces only. Live Grok calls require env keys (see each envKey).
  */
 export const AGENT_ROSTER: AgentRole[] = [

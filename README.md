@@ -1,8 +1,8 @@
-# TradeMode
+# TradMode
 
 Glass-chrome trading terminal for **Polymarket BTC 15-minute** Up/Down markets (mapped to **Yes / No**), with risk tiers, safeguarding rails, an in-app wallet, and a **23-agent** orchestration roster.
 
-**Repo:** https://github.com/RoninGrk1/TradeMode  
+**Repo:** https://github.com/RoninGrk1/TradMode  
 **Owner:** Jazz Forbes-Browne (GitHub: RoninGrk1)
 
 ## Stack
@@ -41,7 +41,7 @@ API routes: `/api/markets/btc-15m`, `/api/btc-price`.
 
 ## Deploy on Vercel
 
-1. Import `RoninGrk1/TradeMode` in the Vercel dashboard (or `vercel` CLI).
+1. Import `RoninGrk1/TradMode` in the Vercel dashboard (or `vercel` CLI).
 2. Framework preset: **Next.js** (auto-detected).
 3. Build command: `next build` · Output: default `.next`.
 4. No special config required. Env vars from `.env.example` are optional.
@@ -49,14 +49,14 @@ API routes: `/api/markets/btc-15m`, `/api/btc-price`.
 
 ## Polymarket free APIs
 
-| API | Base | Use in TradeMode |
+| API | Base | Use in TradMode |
 |-----|------|------------------|
 | Gamma | `https://gamma-api.polymarket.com` | Events/markets discovery, `outcomePrices` |
 | CLOB | `https://clob.polymarket.com` | Public book reads; **order placement needs keys** |
 | BTC spot | Coinbase `api.coinbase.com/v2/exchange-rates?currency=BTC` | Reference only |
 
 BTC 15m slug pattern: `btc-updown-15m-{unix}` (ET-aligned 15-minute window start).  
-Outcomes on Polymarket: **Up / Down** → TradeMode **Yes / No**.
+Outcomes on Polymarket: **Up / Down** → TradMode **Yes / No**.
 
 **Honesty policy:** production paths never invent prices. Missing windows show empty/error states. Trade ticket records safeguarded **intents** against the in-app wallet; live CLOB orders require `POLYMARKET_PRIVATE_KEY` (not wired as fake fills).
 
@@ -83,7 +83,7 @@ Scaffolding in `lib/agents/` — named roles for research, risk, execution, moni
 ## Figma sync (design tokens)
 
 1. Open `styles/tokens.css` (source of truth for CSS variables) and `styles/tokens.ts` (TS mirror).
-2. In Figma, create Variable collections: **Color / TradeMode**, **Radius**, **Blur**, **Spacing**.
+2. In Figma, create Variable collections: **Color / TradMode**, **Radius**, **Blur**, **Spacing**.
 3. Map `--tm-color-*`, `--tm-radius-*`, `--tm-blur-*`, `--tm-space-*` 1:1 (convention: Figma `tm/color/blue-400` ↔ `--tm-color-blue-400`).
 4. Components under `components/` are structured for handoff (GlassCard, Badge, Button, shells).
 5. Chrome accents + glass blur tokens support glassmorphism inspection in Dev Mode.

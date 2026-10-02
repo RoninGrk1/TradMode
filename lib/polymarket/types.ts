@@ -1,4 +1,4 @@
-/** Polymarket Gamma / CLOB shared types (subset used by TradeMode). */
+/** Polymarket Gamma / CLOB shared types (subset used by TradMode). */
 
 export type OutcomeSide = "Yes" | "No";
 
