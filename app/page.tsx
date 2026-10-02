@@ -5,7 +5,6 @@ import { MarketList } from "@/components/markets/MarketList";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { orchestratorSnapshot } from "@/lib/agents/orchestrator";
 import { fetchNearbyBtc15mMarkets, fetchPublicBtcUsd } from "@/lib/polymarket/client";
-import { RISK_TIERS, DEFAULT_TIER_ID } from "@/lib/risk/tiers";
 
 export const dynamic = "force-dynamic";
 
@@ -27,9 +26,6 @@ export default async function DashboardPage() {
           btcUsd={btc.ok ? (btc.data ?? null) : null}
           btcError={btc.ok ? undefined : btc.error}
           liveWindows={liveWindows}
-          killSwitch={false}
-          tierName={RISK_TIERS[DEFAULT_TIER_ID].name}
-          walletBalance={0}
           agentNote={snap.note}
         />
 
@@ -71,6 +67,10 @@ export default async function DashboardPage() {
             <li>Deposit into the in-app wallet (no fees, no minimum).</li>
             <li>Pick Conservative / Balanced / Aggressive on Risk.</li>
             <li>Trade Yes (Up) or No (Down) on a live BTC 15m window.</li>
+            <li>
+              After the window closes, settle open positions on Trade (Gamma winner prices only — or void
+              refund if unclear).
+            </li>
             <li>Optional: set GROK_API_KEY / POLYMARKET_PRIVATE_KEY for live agent/CLOB paths.</li>
           </ol>
         </GlassCard>

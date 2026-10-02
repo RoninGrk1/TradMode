@@ -1,27 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { GlassCard } from "@/components/ui/GlassCard";
-import { defaultRailsState, effectiveOrdersInLastMinute } from "@/lib/risk/rails";
-import { loadRailsFromStorage, saveRailsToStorage } from "@/lib/risk/storage";
-import { RISK_TIERS, DEFAULT_TIER_ID, getTier } from "@/lib/risk/tiers";
-import type { RiskRailsState, RiskTierId } from "@/lib/risk/types";
+import { useTradMode } from "@/components/providers/TradModeProvider";
+import { effectiveOrdersInLastMinute } from "@/lib/risk/rails";
+import { RISK_TIERS, getTier } from "@/lib/risk/tiers";
+import type { RiskTierId } from "@/lib/risk/types";
 
 export function RiskPanel() {
-  const [rails, setRails] = useState<RiskRailsState>(defaultRailsState(DEFAULT_TIER_ID));
-  const [hydrated, setHydrated] = useState(false);
-
-  useEffect(() => {
-    setRails(loadRailsFromStorage());
-    setHydrated(true);
-  }, []);
-
-  function persist(next: RiskRailsState) {
-    setRails(next);
-    saveRailsToStorage(next);
-  }
+  const {
+    rails,
+    hydrated,
+    setTier,
+    toggleKillSwitch,
+    resetSessionCounters,
+    openPositions,
+  } = useTradMode();
 
   const active = getTier(rails.tierId);
   const ordersInWindow = effectiveOrdersInLastMinute(rails);
@@ -36,7 +31,7 @@ export function RiskPanel() {
             <button
               key={id}
               type="button"
-              onClick={() => persist({ ...rails, tierId: id })}
+              onClick={() => setTier(id)}
               className={`text-left transition ${selected ? "ring-2 ring-[var(--tm-color-blue-400)] rounded-[var(--tm-radius-md)]" : ""}`}
             >
               <GlassCard className="h-full space-y-2">
@@ -69,31 +64,13 @@ export function RiskPanel() {
         <p className="text-sm text-[var(--tm-color-text-muted)]">
           Active tier <strong className="text-[var(--tm-color-chrome-bright)]">{active.name}</strong>.
           Rails block oversized orders, over-exposure, max daily loss, and rate spikes. Confirmation gate
-          above ${active.confirmAboveUsd}.
+          above ${active.confirmAboveUsd}. Synced across tabs via <code className="text-[10px]">tradmode.rails.v1</code>.
         </p>
         <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            variant="danger"
-            disabled={!hydrated}
-            onClick={() => persist({ ...rails, killSwitch: !rails.killSwitch })}
-          >
+          <Button type="button" variant="danger" disabled={!hydrated} onClick={toggleKillSwitch}>
             {rails.killSwitch ? "Disarm kill switch" : "Arm kill switch"}
           </Button>
-          <Button
-            type="button"
-            variant="chrome"
-            disabled={!hydrated}
-            onClick={() =>
-              persist({
-                ...rails,
-                dailyLossUsd: 0,
-                openExposureUsd: 0,
-                ordersInLastMinute: 0,
-                lastOrderAt: null,
-              })
-            }
-          >
+          <Button type="button" variant="chrome" disabled={!hydrated} onClick={resetSessionCounters}>
             Reset session counters
           </Button>
         </div>
@@ -112,9 +89,7 @@ export function RiskPanel() {
           </div>
           <div>
             <dt className="text-[var(--tm-color-text-dim)]">Orders / min</dt>
-            <dd className="tabular-nums text-[var(--tm-color-chrome-bright)]">
-              {ordersInWindow}
-            </dd>
+            <dd className="tabular-nums text-[var(--tm-color-chrome-bright)]">{ordersInWindow}</dd>
           </div>
           <div>
             <dt className="text-[var(--tm-color-text-dim)]">Last order</dt>
@@ -124,8 +99,9 @@ export function RiskPanel() {
           </div>
         </dl>
         <p className="text-[11px] text-[var(--tm-color-text-dim)]">
-          Note: daily loss is not auto-updated until a settlement/PnL path exists; open exposure only
-          clears via Reset or a future fill-watcher. Rate limit uses a rolling 60s window.
+          Open exposure rises on ticket accept and falls on settle/void. Daily loss accumulates on losing
+          settles (Gamma-resolved). {openPositions.length} open position
+          {openPositions.length === 1 ? "" : "s"} in ledger. Rate limit uses a rolling 60s window.
         </p>
       </GlassCard>
     </div>

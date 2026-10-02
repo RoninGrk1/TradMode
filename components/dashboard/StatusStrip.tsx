@@ -1,23 +1,24 @@
+"use client";
+
 import { Badge } from "@/components/ui/Badge";
 import { GlassCard } from "@/components/ui/GlassCard";
+import { useTradMode } from "@/components/providers/TradModeProvider";
+import { getTier } from "@/lib/risk/tiers";
 
 export function StatusStrip({
   btcUsd,
   btcError,
   liveWindows,
-  killSwitch,
-  tierName,
-  walletBalance,
   agentNote,
 }: {
   btcUsd: number | null;
   btcError?: string;
   liveWindows: number;
-  killSwitch: boolean;
-  tierName: string;
-  walletBalance: number;
   agentNote: string;
 }) {
+  const { wallet, rails, hydrated } = useTradMode();
+  const tier = getTier(rails.tierId);
+
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
       <GlassCard>
@@ -38,11 +39,13 @@ export function StatusStrip({
       <GlassCard>
         <p className="text-[11px] uppercase tracking-wider text-[var(--tm-color-text-dim)]">Risk · Wallet</p>
         <div className="mt-2 flex flex-wrap items-center gap-2">
-          <Badge variant="blue">{tierName}</Badge>
-          <Badge variant={killSwitch ? "no" : "yes"}>{killSwitch ? "Kill ON" : "Kill OFF"}</Badge>
+          <Badge variant="blue">{hydrated ? tier.name : "…"}</Badge>
+          <Badge variant={rails.killSwitch ? "no" : "yes"}>
+            {hydrated ? (rails.killSwitch ? "Kill ON" : "Kill OFF") : "…"}
+          </Badge>
         </div>
         <p className="mt-2 text-sm tabular-nums text-[var(--tm-color-text-muted)]">
-          Wallet ${walletBalance.toFixed(2)}
+          Wallet ${hydrated ? wallet.balanceUsd.toFixed(2) : "—"}
         </p>
       </GlassCard>
       <GlassCard>

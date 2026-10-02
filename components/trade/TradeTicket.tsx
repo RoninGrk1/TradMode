@@ -1,21 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { GlassCard } from "@/components/ui/GlassCard";
-import { bumpOrderCounters, checkTradeRails, defaultRailsState, effectiveOrdersInLastMinute } from "@/lib/risk/rails";
-import { loadRailsFromStorage, saveRailsToStorage } from "@/lib/risk/storage";
-import { DEFAULT_TIER_ID, getTier } from "@/lib/risk/tiers";
-import type { RiskRailsState, RiskTierId } from "@/lib/risk/types";
+import { useTradMode } from "@/components/providers/TradModeProvider";
+import { checkTradeRails, effectiveOrdersInLastMinute } from "@/lib/risk/rails";
+import { getTier } from "@/lib/risk/tiers";
+import type { RiskTierId } from "@/lib/risk/types";
 import type { Btc15mMarketView, OutcomeSide } from "@/lib/polymarket/types";
-import {
-  applyTx,
-  createEmptyWallet,
-  loadWalletFromStorage,
-  saveWalletToStorage,
-} from "@/lib/wallet/store";
-import type { WalletState } from "@/lib/wallet/types";
+
+const POLL_MS = 15_000;
 
 export function TradeTicket({
   initialMarket,
@@ -24,42 +19,68 @@ export function TradeTicket({
   initialMarket: Btc15mMarketView | null;
   initialSlug?: string;
 }) {
+  const {
+    wallet,
+    rails,
+    hydrated,
+    openPositions,
+    setTier,
+    toggleKillSwitch,
+    recordTradeIntent,
+    settlePosition,
+  } = useTradMode();
+
   const [market, setMarket] = useState<Btc15mMarketView | null>(initialMarket);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [side, setSide] = useState<OutcomeSide>("Yes");
   const [size, setSize] = useState("10");
   const [confirmed, setConfirmed] = useState(false);
-  const [wallet, setWallet] = useState<WalletState>(createEmptyWallet(0));
-  const [rails, setRails] = useState<RiskRailsState>(defaultRailsState(DEFAULT_TIER_ID));
   const [message, setMessage] = useState<string | null>(null);
-  const [hydrated, setHydrated] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [settlingId, setSettlingId] = useState<string | null>(null);
   const submitLock = useRef(false);
+  const slug = market?.window.slug ?? initialSlug;
 
-  useEffect(() => {
-    const w = loadWalletFromStorage() ?? createEmptyWallet(0);
-    setWallet(w);
-    setRails(loadRailsFromStorage());
-    setHydrated(true);
-  }, []);
-
-  useEffect(() => {
-    if (!initialSlug || initialMarket) return;
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
+  const refreshMarket = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      if (!slug) return;
+      if (!opts?.silent) setLoading(true);
+      else setRefreshing(true);
       try {
-        const res = await fetch(`/api/markets/btc-15m?slug=${encodeURIComponent(initialSlug)}`);
-        const json = await res.json();
-        if (!cancelled && json.market) setMarket(json.market as Btc15mMarketView);
+        const res = await fetch(`/api/markets/btc-15m?slug=${encodeURIComponent(slug)}`, {
+          cache: "no-store",
+        });
+        const json = (await res.json()) as { market?: Btc15mMarketView };
+        if (json.market) setMarket(json.market);
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!opts?.silent) setLoading(false);
+        else setRefreshing(false);
+      }
+    },
+    [slug],
+  );
+
+  // Initial client fetch when SSR had no market, plus periodic Gamma refresh even when SSR set.
+  useEffect(() => {
+    if (!slug) return;
+    let cancelled = false;
+
+    (async () => {
+      if (!initialMarket) {
+        if (!cancelled) await refreshMarket();
       }
     })();
+
+    const id = window.setInterval(() => {
+      if (!cancelled) void refreshMarket({ silent: true });
+    }, POLL_MS);
+
     return () => {
       cancelled = true;
+      window.clearInterval(id);
     };
-  }, [initialSlug, initialMarket]);
+  }, [slug, initialMarket, refreshMarket]);
 
   const sizeUsd = Number(size);
   const tier = getTier(rails.tierId);
@@ -76,18 +97,17 @@ export function TradeTicket({
   );
 
   const marketTradable = market?.status === "live";
+  const entryPrice =
+    side === "Yes" ? (market?.prices?.yes ?? null) : (market?.prices?.no ?? null);
 
-  function onTier(id: RiskTierId) {
-    const next = { ...rails, tierId: id };
-    setRails(next);
-    saveRailsToStorage(next);
-  }
+  const positionsForSlug = openPositions.filter((p) => !slug || p.slug === slug);
+  const otherOpen = openPositions.filter((p) => slug && p.slug !== slug);
 
   function submitIntent() {
     if (submitLock.current || submitting) return;
     setMessage(null);
 
-    if (!marketTradable) {
+    if (!marketTradable || !market) {
       setMessage(
         market
           ? `Market status is "${market.status}" — only live windows accept tickets.`
@@ -111,30 +131,50 @@ export function TradeTicket({
     setSubmitting(true);
 
     try {
-      // Scaffold: debit wallet locally; CLOB live orders require POLYMARKET_PRIVATE_KEY.
-      const hasClobKey = false; // client cannot read server secrets; document in UI
-      const note = hasClobKey
-        ? `CLOB ${side} on ${market?.window.slug ?? "unknown"}`
-        : `Intent recorded (scaffold — not a live CLOB order): ${side} $${sizeUsd.toFixed(2)} on ${market?.window.slug ?? "n/a"}`;
-
-      const debited = applyTx(wallet, "trade_debit", sizeUsd, note);
-      if (!debited.ok) {
-        setMessage(debited.error);
+      const note = `Intent recorded (scaffold — not a live CLOB order): ${side} $${sizeUsd.toFixed(2)} on ${market.window.slug}`;
+      const res = recordTradeIntent({
+        side,
+        sizeUsd,
+        slug: market.window.slug,
+        label: market.window.label,
+        entryPrice,
+        note,
+      });
+      if (!res.ok) {
+        setMessage(res.error);
         return;
       }
-      setWallet(debited.state);
-      saveWalletToStorage(debited.state);
-
-      const nextRails = bumpOrderCounters(rails, sizeUsd);
-      setRails(nextRails);
-      saveRailsToStorage(nextRails);
       setConfirmed(false);
       setMessage(
-        `Ticket accepted under ${tier.name} rails. Live CLOB submission needs POLYMARKET_PRIVATE_KEY — this debit is the in-app wallet ledger only.`,
+        `Ticket accepted under ${tier.name} rails. Open position ${res.position.id} — settle after Gamma marks the window closed (win/loss from resolved prices, or void refund). Live CLOB needs POLYMARKET_PRIVATE_KEY.`,
       );
     } finally {
       submitLock.current = false;
       setSubmitting(false);
+    }
+  }
+
+  async function onSettle(positionId: string, positionSlug: string) {
+    setMessage(null);
+    setSettlingId(positionId);
+    try {
+      const res = await fetch(`/api/markets/btc-15m?slug=${encodeURIComponent(positionSlug)}`, {
+        cache: "no-store",
+      });
+      const json = (await res.json()) as { market?: Btc15mMarketView; error?: string };
+      if (!json.market) {
+        setMessage(json.error ?? "Could not load market for settlement.");
+        return;
+      }
+      if (positionSlug === slug) setMarket(json.market);
+      const settled = settlePosition(positionId, json.market);
+      if (!settled.ok) {
+        setMessage(settled.error);
+        return;
+      }
+      setMessage(settled.note);
+    } finally {
+      setSettlingId(null);
     }
   }
 
@@ -143,10 +183,21 @@ export function TradeTicket({
       <GlassCard className="lg:col-span-3 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-lg font-semibold text-[var(--tm-color-chrome-bright)]">Trade ticket</h2>
-          <Badge variant="blue">Yes = Up · No = Down</Badge>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="blue">Yes = Up · No = Down</Badge>
+            {refreshing ? (
+              <span className="text-[10px] uppercase tracking-wider text-[var(--tm-color-text-dim)]">
+                Refreshing…
+              </span>
+            ) : market?.fetchedAt ? (
+              <span className="text-[10px] text-[var(--tm-color-text-dim)]">
+                Gamma {new Date(market.fetchedAt).toLocaleTimeString()}
+              </span>
+            ) : null}
+          </div>
         </div>
 
-        {loading ? (
+        {loading && !market ? (
           <p className="text-sm text-[var(--tm-color-text-muted)]">Loading market from Gamma…</p>
         ) : market ? (
           <div className="space-y-2">
@@ -220,7 +271,7 @@ export function TradeTicket({
               key={id}
               type="button"
               variant={rails.tierId === id ? "primary" : "chrome"}
-              onClick={() => onTier(id)}
+              onClick={() => setTier(id)}
             >
               {getTier(id).name}
             </Button>
@@ -248,16 +299,11 @@ export function TradeTicket({
           >
             {submitting ? "Submitting…" : `Submit ${side} intent`}
           </Button>
-          <Button
-            type="button"
-            variant="danger"
-            onClick={() => {
-              const next = { ...rails, killSwitch: !rails.killSwitch };
-              setRails(next);
-              saveRailsToStorage(next);
-            }}
-          >
+          <Button type="button" variant="danger" onClick={toggleKillSwitch}>
             {rails.killSwitch ? "Disarm kill switch" : "Arm kill switch"}
+          </Button>
+          <Button type="button" variant="chrome" onClick={() => void refreshMarket()}>
+            Refresh prices
           </Button>
         </div>
 
@@ -268,32 +314,74 @@ export function TradeTicket({
         )}
         {message ? <p className="text-sm text-[var(--tm-color-blue-200)]">{message}</p> : null}
         <p className="text-[11px] text-[var(--tm-color-text-dim)]">
-          Order path: document-only CLOB at clob.polymarket.com. This UI records safeguarded intents against
-          the in-app wallet; it does not fabricate fills or prices.
+          Order path: document-only CLOB at clob.polymarket.com. Debits open a demo position; settle credits
+          only from Gamma-resolved winner prices (or void-refunds stake if unclear). No invented fills.
         </p>
       </GlassCard>
 
-      <GlassCard className="lg:col-span-2 space-y-3">
-        <h3 className="font-semibold text-[var(--tm-color-chrome-bright)]">Rails snapshot</h3>
-        <ul className="space-y-2 text-sm text-[var(--tm-color-text-muted)]">
-          <li>Tier: {tier.name}</li>
-          <li>Max order: ${tier.maxOrderUsd}</li>
-          <li>Max position: ${tier.maxPositionUsd}</li>
-          <li>Max daily loss: ${tier.maxDailyLossUsd}</li>
-          <li>
-            Rate: {tier.rateLimitPerMinute}/min (used {ordersInWindow} in window)
-          </li>
-          <li>Open exposure: ${rails.openExposureUsd.toFixed(2)}</li>
-          <li>Wallet: ${wallet.balanceUsd.toFixed(2)}</li>
-          <li>Kill switch: {rails.killSwitch ? "ON" : "OFF"}</li>
-        </ul>
-        {market?.clobTokenIds ? (
-          <div className="rounded-[var(--tm-radius-sm)] border border-[var(--tm-color-border)] p-2 font-mono text-[10px] text-[var(--tm-color-text-dim)] break-all">
-            <p>CLOB Yes token: {market.clobTokenIds.yes ?? "—"}</p>
-            <p className="mt-1">CLOB No token: {market.clobTokenIds.no ?? "—"}</p>
-          </div>
-        ) : null}
-      </GlassCard>
+      <div className="lg:col-span-2 space-y-4">
+        <GlassCard className="space-y-3">
+          <h3 className="font-semibold text-[var(--tm-color-chrome-bright)]">Rails snapshot</h3>
+          <ul className="space-y-2 text-sm text-[var(--tm-color-text-muted)]">
+            <li>Tier: {tier.name}</li>
+            <li>Max order: ${tier.maxOrderUsd}</li>
+            <li>Max position: ${tier.maxPositionUsd}</li>
+            <li>Max daily loss: ${tier.maxDailyLossUsd}</li>
+            <li>
+              Rate: {tier.rateLimitPerMinute}/min (used {ordersInWindow} in window)
+            </li>
+            <li>Open exposure: ${rails.openExposureUsd.toFixed(2)}</li>
+            <li>Daily loss: ${rails.dailyLossUsd.toFixed(2)}</li>
+            <li>Wallet: ${wallet.balanceUsd.toFixed(2)}</li>
+            <li>Kill switch: {rails.killSwitch ? "ON" : "OFF"}</li>
+          </ul>
+          {market?.clobTokenIds ? (
+            <div className="rounded-[var(--tm-radius-sm)] border border-[var(--tm-color-border)] p-2 font-mono text-[10px] text-[var(--tm-color-text-dim)] break-all">
+              <p>CLOB Yes token: {market.clobTokenIds.yes ?? "—"}</p>
+              <p className="mt-1">CLOB No token: {market.clobTokenIds.no ?? "—"}</p>
+            </div>
+          ) : null}
+        </GlassCard>
+
+        <GlassCard className="space-y-3">
+          <h3 className="font-semibold text-[var(--tm-color-chrome-bright)]">Open positions</h3>
+          <p className="text-[11px] text-[var(--tm-color-text-dim)]">
+            Demo settlement: Gamma must report <strong>closed</strong>. Clear winner (≥95¢ / ≤5¢) pays
+            stake÷entry; otherwise void refunds the stake. Exposure and daily loss update on settle.
+          </p>
+          {openPositions.length === 0 ? (
+            <p className="text-sm text-[var(--tm-color-text-muted)]">No open positions.</p>
+          ) : (
+            <ul className="max-h-72 space-y-2 overflow-y-auto text-sm">
+              {[...positionsForSlug, ...otherOpen].map((p) => (
+                <li
+                  key={p.id}
+                  className="rounded-[var(--tm-radius-sm)] border border-[var(--tm-color-border)] p-2 space-y-1"
+                >
+                  <div className="flex justify-between gap-2">
+                    <span className="text-[var(--tm-color-chrome)]">
+                      {p.side} · ${p.sizeUsd.toFixed(2)}
+                    </span>
+                    <span className="tabular-nums text-[var(--tm-color-text-dim)]">
+                      @{p.entryPrice != null ? `${(p.entryPrice * 100).toFixed(1)}¢` : "n/a"}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-[var(--tm-color-text-dim)]">{p.label}</p>
+                  <p className="font-mono text-[10px] text-[var(--tm-color-text-dim)]">{p.slug}</p>
+                  <Button
+                    type="button"
+                    variant="chrome"
+                    disabled={settlingId === p.id}
+                    onClick={() => void onSettle(p.id, p.slug)}
+                  >
+                    {settlingId === p.id ? "Settling…" : "Settle if resolved"}
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </GlassCard>
+      </div>
     </div>
   );
 }

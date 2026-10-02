@@ -1,55 +1,36 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { GlassCard } from "@/components/ui/GlassCard";
+import { useTradMode } from "@/components/providers/TradModeProvider";
 import { WALLET_POLICY } from "@/lib/wallet/policy";
-import {
-  applyTx,
-  createEmptyWallet,
-  loadWalletFromStorage,
-  saveWalletToStorage,
-} from "@/lib/wallet/store";
-import type { WalletState } from "@/lib/wallet/types";
 
 export function WalletPanel() {
-  const [wallet, setWallet] = useState<WalletState>(createEmptyWallet(0));
+  const { wallet, hydrated, deposit, withdraw, openPositions } = useTradMode();
   const [amount, setAmount] = useState("100");
   const [msg, setMsg] = useState<string | null>(null);
-  const [hydrated, setHydrated] = useState(false);
 
-  useEffect(() => {
-    setWallet(loadWalletFromStorage() ?? createEmptyWallet(0));
-    setHydrated(true);
-  }, []);
-
-  function persist(next: WalletState) {
-    setWallet(next);
-    saveWalletToStorage(next);
-  }
-
-  function deposit() {
+  function onDeposit() {
     setMsg(null);
     const n = Number(amount);
-    const res = applyTx(wallet, "deposit", n, "Deposit (no fee, no minimum)");
+    const res = deposit(n);
     if (!res.ok) {
       setMsg(res.error);
       return;
     }
-    persist(res.state);
     setMsg(`Deposited $${n.toFixed(2)}. Fee $0.`);
   }
 
-  function withdraw() {
+  function onWithdraw() {
     setMsg(null);
     const n = Number(amount);
-    const res = applyTx(wallet, "withdraw", n, "Withdrawal (no fee, no max beyond balance)");
+    const res = withdraw(n);
     if (!res.ok) {
       setMsg(res.error);
       return;
     }
-    persist(res.state);
     setMsg(`Withdrew $${n.toFixed(2)}. Fee $0.`);
   }
 
@@ -64,6 +45,13 @@ export function WalletPanel() {
           ${wallet.balanceUsd.toFixed(2)}
         </p>
         <p className="text-sm text-[var(--tm-color-text-muted)]">{WALLET_POLICY.summary}</p>
+        {openPositions.length > 0 ? (
+          <p className="text-xs text-[var(--tm-color-warn)]">
+            {openPositions.length} open demo position{openPositions.length === 1 ? "" : "s"} — settle on
+            Trade after Gamma closes the window (credit path). Debits without settle leave funds locked in
+            exposure.
+          </p>
+        ) : null}
 
         <label className="block space-y-1.5">
           <span className="text-xs uppercase tracking-wider text-[var(--tm-color-text-dim)]">Amount</span>
@@ -78,10 +66,10 @@ export function WalletPanel() {
         </label>
 
         <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="primary" disabled={!hydrated} onClick={deposit}>
+          <Button type="button" variant="primary" disabled={!hydrated} onClick={onDeposit}>
             Deposit
           </Button>
-          <Button type="button" variant="chrome" disabled={!hydrated} onClick={withdraw}>
+          <Button type="button" variant="chrome" disabled={!hydrated} onClick={onWithdraw}>
             Withdraw
           </Button>
         </div>

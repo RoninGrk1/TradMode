@@ -32,12 +32,14 @@ Optional: copy `.env.example` → `.env.local` (no keys required for live market
 |-------|---------|
 | `/` | Dashboard — spot BTC, nearby 15m windows, checklist |
 | `/markets` | BTC 15m market list (live Gamma) |
-| `/trade` | Yes/No trade ticket + rails |
+| `/trade` | Yes/No trade ticket + rails + demo settle |
 | `/risk` | Conservative / Balanced / Aggressive + kill switch |
 | `/wallet` | Deposit / withdraw (no fees, no min, no max beyond balance) |
 | `/agents` | 23-agent roster |
 
 API routes: `/api/markets/btc-15m`, `/api/btc-price`.
+
+Nearby markets (`/api/markets/btc-15m` without `slug`) returns **502** with `ok: false` when Gamma yields no usable live/closed windows (never a silent `200` + empty success).
 
 ## Deploy on Vercel
 
@@ -62,10 +64,36 @@ Outcomes on Polymarket: **Up / Down** → TradMode **Yes / No**.
 
 Geographic restrictions may apply — see [Polymarket docs](https://docs.polymarket.com).
 
+## Demo positions & settlement (credit path)
+
+Scaffold tickets **debit** the in-app wallet and open a local position (`tradmode.positions.v1`). There is a clear **credit** path on Trade → **Settle if resolved**:
+
+1. Wait until Gamma marks the window **closed**.
+2. If outcome prices show a clear winner (≥95¢ / ≤5¢) **and** an entry price was recorded → win credits `stake ÷ entryPrice`, loss credits `$0` and adds stake to **daily loss**.
+3. If closed without a clear winner (or no entry price) → **void refund** returns the stake (honest unwind, not invented PnL).
+4. Settle always reduces **open exposure**.
+
+This is a local demo ledger — not a live CLOB fill. UI copy on Trade/Wallet and the dashboard checklist call this out.
+
+## Shared client state
+
+Wallet, rails, and positions are shared via `TradModeProvider` (root layout) and browser `localStorage`:
+
+| Key | Contents |
+|-----|----------|
+| `tradmode.wallet.v1` | Balance + tx ledger |
+| `tradmode.rails.v1` | Tier, kill switch, exposure, daily loss, rate counters |
+| `tradmode.positions.v1` | Open/settled demo positions |
+
+Cross-tab sync uses the `storage` event so Trade and Risk stay consistent without a full remount. Same-tab route changes share the React context.
+
+Trade ticket **polls Gamma every 15s** (and has a manual refresh) so SSR `initialMarket` does not leave stale prices on screen.
+
 ## Risk tiers & rails
 
 - **Conservative / Balanced / Aggressive** — order size, position, daily loss, rate limit, confirmation gate, balance fraction.
 - **Kill switch**, position caps, max loss, rate limits, confirmation gates — `lib/risk/`.
+- `openExposureUsd` / `dailyLossUsd` update on ticket accept and settle/void (not dead counters).
 
 ## Wallet policy
 
@@ -92,10 +120,11 @@ Scaffolding in `lib/agents/` — named roles for research, risk, execution, moni
 
 ```
 app/                 # App Router pages + API
-components/          # UI, markets, trade, risk, wallet, agents
+components/          # UI, markets, trade, risk, wallet, agents, providers
 lib/polymarket/      # Gamma/CLOB client, BTC 15m windows
 lib/risk/            # Tiers + rails
 lib/wallet/          # Ledger + policy
+lib/tradmode/        # Demo positions + settle helpers
 lib/agents/          # 23-agent roster + orchestrator
 styles/tokens.css    # Figma-friendly design tokens
 styles/tokens.ts

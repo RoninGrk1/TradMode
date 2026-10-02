@@ -138,3 +138,21 @@ export function checkTradeRails(state: RiskRailsState, trade: ProposedTrade): Ra
     requiresConfirmation: false,
   };
 }
+
+/** Reduce open exposure after settle / void / cancel (never negative). */
+export function reduceExposure(state: RiskRailsState, sizeUsd: number): RiskRailsState {
+  const amount = Number.isFinite(sizeUsd) && sizeUsd > 0 ? sizeUsd : 0;
+  return {
+    ...state,
+    openExposureUsd: Math.max(0, state.openExposureUsd - amount),
+  };
+}
+
+/** Accumulate realized daily loss after a losing settle (honest PnL path). */
+export function recordRealizedLoss(state: RiskRailsState, lossUsd: number): RiskRailsState {
+  const amount = Number.isFinite(lossUsd) && lossUsd > 0 ? lossUsd : 0;
+  return {
+    ...state,
+    dailyLossUsd: state.dailyLossUsd + amount,
+  };
+}

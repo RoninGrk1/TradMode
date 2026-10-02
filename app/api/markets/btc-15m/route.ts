@@ -39,9 +39,14 @@ export async function GET(req: NextRequest) {
   const past = Number.isFinite(pastRaw) ? Math.min(Math.max(Math.floor(pastRaw), 0), 12) : 1;
   const future = Number.isFinite(futureRaw) ? Math.min(Math.max(Math.floor(futureRaw), 0), 24) : 3;
   const bundle = await fetchNearbyBtc15mMarkets(past, future);
-  return NextResponse.json({
-    ok: true,
-    ...bundle,
-    source: "gamma",
-  });
+  const status = bundle.gammaOk ? 200 : 502;
+  return NextResponse.json(
+    {
+      ok: bundle.gammaOk,
+      ...bundle,
+      source: "gamma",
+      ...(bundle.gammaOk ? {} : { error: "Gamma returned no usable BTC 15m events for nearby windows." }),
+    },
+    { status },
+  );
 }
