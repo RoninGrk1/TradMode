@@ -1,0 +1,66 @@
+@import "tailwindcss";
+@import "../styles/tokens.css";
+
+@theme inline {
+  --color-background: var(--tm-color-bg-deep);
+  --color-foreground: var(--tm-color-text);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  background: var(--tm-color-bg-deep);
+  color: var(--tm-color-text);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+.tm-app {
+  position: relative;
+  isolation: isolate;
+}
+
+.tm-bg-grid {
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(59, 130, 246, 0.28), transparent 55%),
+    radial-gradient(ellipse 40% 30% at 100% 0%, rgba(200, 212, 232, 0.08), transparent 50%),
+    linear-gradient(180deg, var(--tm-color-bg-base), var(--tm-color-bg-deep));
+  opacity: 1;
+}
+
+.tm-bg-grid::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(200, 212, 232, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(200, 212, 232, 0.03) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse at center, black 20%, transparent 75%);
+}
+
+.glass-card {
+  border-radius: var(--tm-radius-md);
+  background: var(--tm-color-bg-glass);
+  border: 1px solid var(--tm-color-border);
+  box-shadow: var(--tm-shadow-glass);
+  backdrop-filter: blur(var(--tm-blur-md));
+  -webkit-backdrop-filter: blur(var(--tm-blur-md));
+  background-image: var(--tm-chrome-highlight);
+}
+
+.scrollbar-none {
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+::selection {
+  background: rgba(59, 130, 246, 0.35);
+  color: var(--tm-color-chrome-bright);
+}

@@ -1,0 +1,92 @@
+/**
+ * TradeMode design tokens — Figma-variable friendly.
+ * Map these CSS custom properties 1:1 to Figma Variables (collections: Color, Radius, Blur, Spacing, Chrome).
+ * Naming: --tm-{category}-{name}
+ */
+
+:root {
+  /* —— Color: blue chrome palette —— */
+  --tm-color-bg-deep: #050a14;
+  --tm-color-bg-base: #0a1220;
+  --tm-color-bg-elevated: #0f1a2e;
+  --tm-color-bg-glass: rgba(15, 28, 52, 0.55);
+  --tm-color-bg-glass-strong: rgba(12, 24, 48, 0.78);
+
+  --tm-color-chrome: #c8d4e8;
+  --tm-color-chrome-bright: #e8eef8;
+  --tm-color-chrome-dim: #7a8ba8;
+  --tm-color-chrome-edge: rgba(200, 212, 232, 0.35);
+
+  --tm-color-blue-50: #e8f1ff;
+  --tm-color-blue-100: #c5dbff;
+  --tm-color-blue-200: #8fb8ff;
+  --tm-color-blue-300: #5a96ff;
+  --tm-color-blue-400: #3b82f6;
+  --tm-color-blue-500: #2563eb;
+  --tm-color-blue-600: #1d4ed8;
+  --tm-color-blue-700: #1e3a8a;
+  --tm-color-blue-glow: rgba(59, 130, 246, 0.45);
+
+  --tm-color-yes: #22c55e;
+  --tm-color-yes-bg: rgba(34, 197, 94, 0.15);
+  --tm-color-no: #ef4444;
+  --tm-color-no-bg: rgba(239, 68, 68, 0.15);
+  --tm-color-warn: #f59e0b;
+  --tm-color-warn-bg: rgba(245, 158, 11, 0.15);
+
+  --tm-color-text: #e8eef8;
+  --tm-color-text-muted: #8fa0b8;
+  --tm-color-text-dim: #5c6d88;
+  --tm-color-border: rgba(200, 212, 232, 0.12);
+  --tm-color-border-strong: rgba(200, 212, 232, 0.28);
+  --tm-color-focus: #3b82f6;
+
+  /* —— Radius —— */
+  --tm-radius-xs: 6px;
+  --tm-radius-sm: 10px;
+  --tm-radius-md: 14px;
+  --tm-radius-lg: 18px;
+  --tm-radius-xl: 24px;
+  --tm-radius-pill: 999px;
+
+  /* —— Blur (glassmorphism) —— */
+  --tm-blur-sm: 8px;
+  --tm-blur-md: 16px;
+  --tm-blur-lg: 28px;
+  --tm-blur-xl: 40px;
+
+  /* —— Spacing (4px base) —— */
+  --tm-space-0: 0;
+  --tm-space-1: 4px;
+  --tm-space-2: 8px;
+  --tm-space-3: 12px;
+  --tm-space-4: 16px;
+  --tm-space-5: 20px;
+  --tm-space-6: 24px;
+  --tm-space-8: 32px;
+  --tm-space-10: 40px;
+  --tm-space-12: 48px;
+  --tm-space-16: 64px;
+
+  /* —— Chrome accents —— */
+  --tm-chrome-highlight: linear-gradient(
+    135deg,
+    rgba(232, 238, 248, 0.18) 0%,
+    rgba(59, 130, 246, 0.08) 40%,
+    rgba(232, 238, 248, 0.04) 100%
+  );
+  --tm-chrome-border: linear-gradient(
+    135deg,
+    rgba(232, 238, 248, 0.45),
+    rgba(59, 130, 246, 0.25),
+    rgba(232, 238, 248, 0.15)
+  );
+  --tm-shadow-glass: 0 8px 32px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(232, 238, 248, 0.12);
+  --tm-shadow-glow: 0 0 40px rgba(59, 130, 246, 0.2);
+
+  /* —— Motion —— */
+  --tm-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --tm-duration-fast: 150ms;
+  --tm-duration: 220ms;
+}
